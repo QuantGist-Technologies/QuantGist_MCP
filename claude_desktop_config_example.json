@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "quantgist": {
+      "command": "quantgist-mcp",
+      "env": {
+        "QUANTGIST_API_KEY": "qg_live_REPLACE_WITH_YOUR_KEY"
+      }
+    }
+  }
+}
