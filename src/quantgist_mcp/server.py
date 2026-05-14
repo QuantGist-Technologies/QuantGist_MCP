@@ -162,6 +162,112 @@ TOOLS: list[types.Tool] = [
             "required": ["event_id"],
         },
     ),
+    types.Tool(
+        name="get_earnings_upcoming",
+        description=(
+            "Get the next upcoming earnings reports across all tickers, ordered by report date. "
+            "Use this to see which companies are reporting soon and their EPS/revenue estimates."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                    "description": "Number of upcoming reports to return (default 20).",
+                },
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="get_earnings_for_ticker",
+        description=(
+            "Get earnings history for a specific stock ticker, including EPS estimates vs actuals, "
+            "revenue, beat/miss classification, and SEC EDGAR filing links."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol, e.g. 'AAPL', 'MSFT', 'NVDA'.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 10,
+                    "description": "Number of historical reports to return (default 10).",
+                },
+            },
+            "required": ["ticker"],
+        },
+    ),
+    types.Tool(
+        name="get_earnings_summary",
+        description=(
+            "Get a beat/miss/in-line summary for a ticker — how many quarters did it beat, miss, "
+            "or come in-line with EPS estimates? Includes overall beat rate."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol, e.g. 'AAPL'.",
+                },
+            },
+            "required": ["ticker"],
+        },
+    ),
+    types.Tool(
+        name="get_earnings_surprises",
+        description=(
+            "Get the largest EPS surprises across the market — stocks that significantly beat or "
+            "missed analyst estimates in their most recent earnings report."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 20,
+                    "description": "Number of top surprises to return (default 20).",
+                },
+            },
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="get_earnings_season_summary",
+        description=(
+            "Get the index-level summary of the current earnings season — total reports, "
+            "overall beat rate, average EPS surprise, and season label (e.g. 'Q1 2025')."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    ),
+    types.Tool(
+        name="get_markets_overview",
+        description=(
+            "Get end-of-day quotes for major market indices and instruments "
+            "(S&P 500, Nasdaq, Dow Jones, gold, oil, etc.). "
+            "Useful for a quick snapshot of overall market conditions."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -211,6 +317,14 @@ async def _dispatch(name: str, args: dict) -> str:
         "check_safe_to_trade": _tool_check_safe_to_trade,
         "get_economic_calendar": _tool_get_economic_calendar,
         "get_event_detail": _tool_get_event_detail,
+        # Earnings
+        "get_earnings_upcoming": _tool_get_earnings_upcoming,
+        "get_earnings_for_ticker": _tool_get_earnings_for_ticker,
+        "get_earnings_summary": _tool_get_earnings_summary,
+        "get_earnings_surprises": _tool_get_earnings_surprises,
+        "get_earnings_season_summary": _tool_get_earnings_season_summary,
+        # Markets
+        "get_markets_overview": _tool_get_markets_overview,
     }
     handler = handlers.get(name)
     if handler is None:
@@ -407,6 +521,73 @@ async def _tool_get_event_detail(args: dict) -> str:
         event = await api.get_event(event_id)
 
     return format_event_detail(event)
+
+
+# ---------------------------------------------------------------------------
+# Earnings tool implementations
+# ---------------------------------------------------------------------------
+
+
+async def _tool_get_earnings_upcoming(args: dict) -> str:
+    limit = int(args.get("limit", 20))
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+
+    async with QuantGistAPI() as api:
+        events = await api.get_earnings_upcoming(limit=limit)
+
+    return format_event_list(events, f"Upcoming Earnings — next {limit} reports")
+
+
+async def _tool_get_earnings_for_ticker(args: dict) -> str:
+    ticker = str(args.get("ticker", "")).strip().upper()
+    if not ticker:
+        raise ValueError("ticker is required")
+    limit = int(args.get("limit", 10))
+
+    async with QuantGistAPI() as api:
+        events = await api.get_earnings_for_ticker(ticker, limit=limit)
+
+    return format_event_list(events, f"Earnings History — {ticker}")
+
+
+async def _tool_get_earnings_summary(args: dict) -> str:
+    ticker = str(args.get("ticker", "")).strip().upper()
+    if not ticker:
+        raise ValueError("ticker is required")
+
+    async with QuantGistAPI() as api:
+        summary = await api.get_earnings_summary(ticker)
+
+    return json.dumps(summary, indent=2, default=str)
+
+
+async def _tool_get_earnings_surprises(args: dict) -> str:
+    limit = int(args.get("limit", 20))
+
+    async with QuantGistAPI() as api:
+        surprises = await api.get_earnings_surprises(limit=limit)
+
+    return format_event_list(surprises, f"Top {limit} EPS Surprises")
+
+
+async def _tool_get_earnings_season_summary(args: dict) -> str:
+    async with QuantGistAPI() as api:
+        summary = await api.get_earnings_season_summary()
+
+    return json.dumps(summary, indent=2, default=str)
+
+
+# ---------------------------------------------------------------------------
+# Markets tool implementations
+# ---------------------------------------------------------------------------
+
+
+async def _tool_get_markets_overview(args: dict) -> str:
+    async with QuantGistAPI() as api:
+        quotes = await api.get_markets_overview()
+
+    return format_event_list(quotes, "Markets Overview")
 
 
 # ---------------------------------------------------------------------------

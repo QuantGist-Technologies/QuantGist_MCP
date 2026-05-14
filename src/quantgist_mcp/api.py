@@ -154,3 +154,105 @@ class QuantGistAPI:
         if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
             return data["data"]
         return data
+
+    # ------------------------------------------------------------------ #
+    # Earnings API                                                         #
+    # ------------------------------------------------------------------ #
+
+    async def get_earnings_upcoming(self, limit: int = 20) -> list[dict]:
+        """Return the next N upcoming earnings reports.
+
+        Args:
+            limit: Number of reports to return (default 20).
+
+        Returns:
+            List of earnings event dicts.
+        """
+        data = await self._get("/earnings/upcoming", {"limit": limit})
+        if isinstance(data, list):
+            return data
+        return data.get("data", [])
+
+    async def get_earnings_for_ticker(self, ticker: str, limit: int = 20) -> list[dict]:
+        """Return earnings history for a single ticker.
+
+        Args:
+            ticker: Ticker symbol (e.g. "AAPL").
+            limit: Results per page (default 20).
+
+        Returns:
+            List of earnings event dicts.
+        """
+        data = await self._get(f"/earnings/{ticker.upper()}", {"limit": limit})
+        if isinstance(data, list):
+            return data
+        return data.get("data", [])
+
+    async def get_earnings_summary(self, ticker: str) -> dict:
+        """Return beat/miss/in-line summary for a ticker.
+
+        Args:
+            ticker: Ticker symbol.
+
+        Returns:
+            Summary dict with beat, miss, in_line, total, beat_rate.
+        """
+        data = await self._get(f"/earnings/{ticker.upper()}/summary")
+        if isinstance(data, dict) and "data" in data:
+            return data["data"]
+        return data
+
+    async def get_earnings_surprises(self, limit: int = 20) -> list[dict]:
+        """Return largest cross-market EPS surprises.
+
+        Args:
+            limit: Maximum results (default 20).
+
+        Returns:
+            List of surprise dicts.
+        """
+        data = await self._get("/earnings/surprises", {"limit": limit})
+        if isinstance(data, list):
+            return data
+        return data.get("data", [])
+
+    async def get_earnings_season_summary(self) -> dict:
+        """Return index-level aggregate for the current earnings season.
+
+        Returns:
+            Season summary dict.
+        """
+        data = await self._get("/earnings/season/summary")
+        if isinstance(data, dict) and "data" in data:
+            return data["data"]
+        return data
+
+    # ------------------------------------------------------------------ #
+    # Markets API                                                          #
+    # ------------------------------------------------------------------ #
+
+    async def get_markets_overview(self) -> list[dict]:
+        """Return EOD quotes for major market indices.
+
+        Returns:
+            List of market quote dicts.
+        """
+        data = await self._get("/markets/overview")
+        if isinstance(data, list):
+            return data
+        return data.get("data", [])
+
+    # ------------------------------------------------------------------ #
+    # Changelog                                                            #
+    # ------------------------------------------------------------------ #
+
+    async def get_changelog(self) -> list[dict]:
+        """Return the public API changelog entries.
+
+        Returns:
+            List of changelog entry dicts.
+        """
+        data = await self._get("/changelog")
+        if isinstance(data, list):
+            return data
+        return data.get("data", [])
