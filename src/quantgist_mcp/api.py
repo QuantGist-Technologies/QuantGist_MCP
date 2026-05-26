@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -91,19 +92,18 @@ class QuantGistAPI:
     ) -> list[dict]:
         """Return events scheduled in the next *hours* hours.
 
-        Args:
-            hours: Look-ahead window (1–168).
-            impact: Filter by impact level: high | medium | low.
-                    Pass None (or "all") to return all impact levels.
-
-        Returns:
-            List of event dicts as returned by the API.
+        The backend does not expose a separate /events/upcoming route; this
+        maps the upcoming window to GET /events with canonical filters.
         """
-        params: dict[str, Any] = {"hours": hours}
+        now = datetime.now(timezone.utc)
+        params: dict[str, Any] = {
+            "from_date": now.isoformat(),
+            "to_date": (now + timedelta(hours=hours)).isoformat(),
+            "per_page": 100,
+        }
         if impact and impact != "all":
             params["impact"] = impact
-        data = await self._get("/events/upcoming", params)
-        # The API may return {"data": [...]} or a plain list
+        data = await self._get("/events", params)
         if isinstance(data, list):
             return data
         return data.get("data", data.get("events", []))
@@ -129,8 +129,8 @@ class QuantGistAPI:
             List of event dicts.
         """
         params: dict[str, Any] = {
-            "from": from_time,
-            "to": to_time,
+            "from_date": from_time,
+            "to_date": to_time,
             "impact": impact if impact and impact != "all" else None,
             "country": country,
             "symbol": symbol,

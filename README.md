@@ -17,7 +17,7 @@ The server registers five tools that any MCP-compatible client (Claude Desktop, 
 ## Requirements
 
 - Python 3.10+
-- A QuantGist API key — get one at [quantgist.com](https://quantgist.com) (free tier: 50 calls/day)
+- A QuantGist API key — get one at [quantgist.com](https://quantgist.com) (free tier: 100 calls/day)
 
 ## Installation
 
