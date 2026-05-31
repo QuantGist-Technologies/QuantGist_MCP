@@ -200,7 +200,7 @@ uv run ruff format src/       # format
 
 ## API rate limits
 
-The free tier allows 50 API calls/day. Each tool invocation makes 1–2 API calls. Upgrade at [quantgist.com/pricing](https://quantgist.com/pricing) for higher limits.
+The free tier allows 100 API calls/day with up to 365 days of event history. Each tool invocation makes 1–2 API calls. Upgrade at [quantgist.com/pricing](https://quantgist.com/pricing) for higher limits.
 
 ## License
 
