@@ -1,0 +1,28 @@
+# Smithery configuration: https://smithery.ai/docs/build/project-config/smithery.yaml
+#
+# Local (stdio) connection: Smithery generates a client config that runs the published
+# `quantgist-mcp` PyPI package via uvx on the user's machine, with their QuantGist API key
+# injected as QUANTGIST_API_KEY. No global install required.
+#
+# A REMOTE connection to the hosted server (https://api.quantgist.com/mcp, auth via the
+# X-API-Key header) is registered separately in the Smithery dashboard — it needs no entry
+# in this file.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - quantgistApiKey
+    properties:
+      quantgistApiKey:
+        type: string
+        title: QuantGist API Key
+        description: "Your QuantGist API key (qg_live_... or qg_test_...). Get one free at https://quantgist.com"
+  commandFunction: |-
+    (config) => ({
+      command: 'uvx',
+      args: ['quantgist-mcp'],
+      env: { QUANTGIST_API_KEY: config.quantgistApiKey }
+    })
+  exampleConfig:
+    quantgistApiKey: qg_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
