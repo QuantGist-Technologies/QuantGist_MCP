@@ -61,15 +61,26 @@ Quangist_MCP/
 ├── src/
 │   └── quantgist_mcp/
 │       ├── __init__.py       # __version__
-│       ├── server.py         # MCP Server, tool schemas, dispatch, entry point main()
-│       ├── api.py            # QuantGistAPI — async httpx wrapper over the REST API
-│       └── formatters.py     # raw event dicts → readable text/markdown
-├── pyproject.toml            # hatchling build; entry point quantgist-mcp = server:main
+│       ├── server.py         # MCP Server, tool schemas, dispatch, stdio entry main()
+│       ├── http.py           # streamable-HTTP transport (quantgist-mcp-http), Starlette app
+│       ├── api.py            # QuantGistAPI — async httpx wrapper; per-request key contextvar
+│       └── formatters.py     # raw event/earnings/markets dicts → readable text/markdown
+├── pyproject.toml            # hatchling build; scripts quantgist-mcp + quantgist-mcp-http
+├── server.json               # official MCP Registry manifest
+├── Dockerfile                # python:3.12-slim + uv, runs quantgist-mcp-http
+├── docker-compose.yml        # Coolify deploy (pre-built GHCR image, never build:)
+├── DEPLOY.md                 # Docker / Compose / Coolify hosting guide
 ├── README.md
 ├── CHANGELOG.md
 ├── claude_desktop_config_example.json
-└── .github/workflows/ci.yml  # uv sync → import check → uv build
+└── .github/workflows/
+    ├── ci.yml                # import check + build; PyPI + MCP-registry publish on v* tags
+    └── docker-build.yml      # build arm64 → GHCR → Coolify deploy on push to main
 ```
+
+Two transports, one `Server`: stdio (`quantgist-mcp`, in `server.py`) and streamable-HTTP
+(`quantgist-mcp-http`, in `http.py`). HTTP reads a per-request `X-API-Key` header (via the
+`set_request_api_key` contextvar in `api.py`), falling back to the `QUANTGIST_API_KEY` env var.
 
 There is **no** `tools/` subpackage — all tool schemas and handlers live in `server.py`,
 dispatched through the `handlers` dict in `_dispatch()`.

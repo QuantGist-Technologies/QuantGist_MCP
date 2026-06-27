@@ -1,0 +1,27 @@
+# QuantGist MCP — hosted streamable-HTTP server.
+#
+# Coolify deploys this compose file using the PRE-BUILT image pushed by GitHub
+# Actions (see .github/workflows/docker-build.yml). Do NOT add a `build:` block —
+# Coolify must pull the image, not build it.
+#
+# For local self-hosting from source instead, see DEPLOY.md (`docker build` /
+# `docker run`) — you don't need this file for that.
+services:
+  quantgist-mcp:
+    image: ghcr.io/quantgist-technologies/quantgist-mcp:latest
+    restart: unless-stopped
+    environment:
+      # Server-side fallback key. Callers may instead pass their own key via the
+      # X-API-Key header (multi-tenant). Coolify injects this from its env store.
+      - QUANTGIST_API_KEY=${QUANTGIST_API_KEY}
+      - PORT=8000
+      - HOST=0.0.0.0
+    # Coolify sets the public domain + TLS via its proxy; it reads this port.
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

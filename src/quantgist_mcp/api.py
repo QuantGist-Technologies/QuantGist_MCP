@@ -1,14 +1,30 @@
 """Thin async httpx wrapper around the QuantGist REST API."""
 from __future__ import annotations
 
+import contextvars
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 
-BASE_URL = "https://api.quantgist.com/v1"
+BASE_URL = os.environ.get("QUANTGIST_API_URL", "https://api.quantgist.com/v1")
 _DEFAULT_TIMEOUT = 20.0
+
+# Per-request API key, set by the HTTP transport from an incoming X-API-Key
+# header. The stdio transport never sets this, so it falls back to the env var.
+_request_api_key: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "quantgist_request_api_key", default=None
+)
+
+
+def set_request_api_key(key: str | None) -> contextvars.Token:
+    """Bind an API key for the current request context. Returns a reset token."""
+    return _request_api_key.set(key)
+
+
+def reset_request_api_key(token: contextvars.Token) -> None:
+    _request_api_key.reset(token)
 
 
 class QuantGistAPIError(Exception):
@@ -30,11 +46,11 @@ class QuantGistAPI:
     """
 
     def __init__(self, api_key: str | None = None) -> None:
-        key = api_key or os.environ.get("QUANTGIST_API_KEY", "")
+        key = api_key or _request_api_key.get() or os.environ.get("QUANTGIST_API_KEY", "")
         if not key:
             raise ValueError(
-                "QUANTGIST_API_KEY environment variable is not set. "
-                "Export it before starting the MCP server."
+                "No QuantGist API key available. Set QUANTGIST_API_KEY, or (when using "
+                "the HTTP transport) send your key in the X-API-Key request header."
             )
         self._headers = {"X-API-Key": key, "Accept": "application/json"}
         self._client: httpx.AsyncClient | None = None
@@ -231,16 +247,19 @@ class QuantGistAPI:
     # Markets API                                                          #
     # ------------------------------------------------------------------ #
 
-    async def get_markets_overview(self) -> list[dict]:
-        """Return EOD quotes for major market indices.
+    async def get_markets_overview(self) -> dict:
+        """Return the market overview snapshot.
+
+        The payload is a dict of the form
+        ``{as_of, recency, delay_minutes, groups: [{name, items: [...]}, ...]}``.
 
         Returns:
-            List of market quote dicts.
+            The overview dict (unwrapped from a ``{"data": ...}`` envelope if present).
         """
         data = await self._get("/markets/overview")
-        if isinstance(data, list):
-            return data
-        return data.get("data", [])
+        if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
+            return data["data"]
+        return data
 
     # ------------------------------------------------------------------ #
     # Changelog                                                            #

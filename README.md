@@ -119,6 +119,20 @@ Add to `.claude/mcp_settings.json` in your project (or the global `~/.claude/mcp
 }
 ```
 
+## Self-hosting (HTTP transport)
+
+Besides the stdio transport above, the server can run as a hosted HTTP service via the
+`quantgist-mcp-http` entry point (`GET /health`, MCP at `/mcp`). It accepts a per-request
+`X-API-Key` header (multi-tenant) or a server-side `QUANTGIST_API_KEY` env var.
+
+```bash
+docker build -t quantgist-mcp .
+docker run -p 8000:8000 -e QUANTGIST_API_KEY=qg_live_YOUR_KEY quantgist-mcp
+curl http://localhost:8000/health
+```
+
+See [DEPLOY.md](DEPLOY.md) for Docker, Docker Compose, and Coolify deployment.
+
 ## Tool reference
 
 ### `get_upcoming_events`

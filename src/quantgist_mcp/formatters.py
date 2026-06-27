@@ -44,6 +44,16 @@ def _val(event: dict, key: str) -> str:
     return str(v)
 
 
+def _num(v: object, suffix: str = "") -> str | None:
+    """Format a numeric value compactly, or None when absent."""
+    if v is None or v == "":
+        return None
+    try:
+        return f"{float(v):g}{suffix}"
+    except (ValueError, TypeError):
+        return str(v)
+
+
 # ------------------------------------------------------------------ #
 # Public formatters                                                    #
 # ------------------------------------------------------------------ #
@@ -141,6 +151,107 @@ def format_event_detail(event: dict) -> str:
         lines.extend(["", f"**Description:** {description}"])
 
     return "\n".join(lines)
+
+
+def format_earnings(rec: dict) -> str:
+    """Return a compact one-liner for an earnings record.
+
+    Example::
+
+        AAPL (Apple Inc.) | 2024-08-01 | EPS est 1.34 act 1.4 beat +4.5% | FY2024 Q2
+    """
+    ticker = rec.get("ticker") or _UNKNOWN
+    company = rec.get("company_name")
+    head = ticker if not company else f"{ticker} ({company})"
+
+    when = rec.get("date") or _ts(rec)
+    parts = [head, str(when)]
+
+    eps_bits: list[str] = []
+    est = _num(rec.get("eps_estimate"))
+    act = _num(rec.get("eps_actual"))
+    if est is not None:
+        eps_bits.append(f"est {est}")
+    if act is not None:
+        eps_bits.append(f"act {act}")
+    surprise = rec.get("eps_surprise_percent")
+    if surprise is not None:
+        try:
+            sp = float(surprise)
+            label = "beat" if sp > 0 else "miss" if sp < 0 else "in-line"
+            eps_bits.append(f"{label} {sp:+.1f}%")
+        except (ValueError, TypeError):
+            pass
+    if eps_bits:
+        parts.append("EPS " + " ".join(eps_bits))
+
+    fy = rec.get("fiscal_year")
+    fp = rec.get("fiscal_period")
+    period = f"{'FY' + str(fy) if fy else ''}{' ' + fp if fp else ''}".strip()
+    if period:
+        parts.append(period)
+
+    if rec.get("sec_filing_url"):
+        parts.append(str(rec["sec_filing_url"]))
+
+    return " | ".join(parts)
+
+
+def format_earnings_list(records: list[dict], title: str = "Earnings") -> str:
+    """Return a numbered list of earnings records with a header."""
+    if not records:
+        return f"**{title}**\n\nNo earnings reports found."
+
+    plural = "s" if len(records) != 1 else ""
+    lines = [f"**{title}** ({len(records)} report{plural})\n"]
+    for i, rec in enumerate(records, 1):
+        lines.append(f"{i}. {format_earnings(rec)}")
+    return "\n".join(lines)
+
+
+def format_markets_overview(data: dict) -> str:
+    """Return market groups (indexes, equities, …) as a readable snapshot.
+
+    The /markets/overview payload is ``{as_of, recency, delay_minutes, groups:[...]}``
+    where each group is ``{name, items:[{symbol, name, price, change_percent, ...}]}``.
+    """
+    if not isinstance(data, dict):
+        return "**Markets Overview**\n\nNo market data available."
+
+    groups = data.get("groups") or []
+    if not groups:
+        return "**Markets Overview**\n\nNo market data available."
+
+    meta = []
+    as_of = data.get("as_of")
+    if as_of:
+        meta.append(f"as of {_ts({'release_time': as_of})}")
+    if data.get("recency"):
+        meta.append(str(data["recency"]))
+    header = "**Markets Overview**" + (f" — {', '.join(meta)}" if meta else "")
+
+    lines = [header, ""]
+    for group in groups:
+        items = group.get("items") or []
+        if not items:
+            continue
+        lines.append(f"### {group.get('name', 'Group')}")
+        for it in items:
+            symbol = it.get("symbol", "?")
+            name = it.get("name", "")
+            price = _num(it.get("price")) or _UNKNOWN
+            chg = it.get("change_percent")
+            chg_str = ""
+            if chg is not None:
+                try:
+                    chg_str = f" ({float(chg):+.2f}%)"
+                except (ValueError, TypeError):
+                    pass
+            label = symbol if not name else f"{symbol} {name}"
+            lines.append(f"  - {label}: {price}{chg_str}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
 
 
 def format_calendar(events: list[dict], date_str: str) -> str:

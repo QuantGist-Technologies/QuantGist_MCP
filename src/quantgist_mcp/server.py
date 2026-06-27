@@ -13,8 +13,10 @@ from mcp.server.stdio import stdio_server
 from quantgist_mcp.api import QuantGistAPI, QuantGistAPIError
 from quantgist_mcp.formatters import (
     format_calendar,
+    format_earnings_list,
     format_event_detail,
     format_event_list,
+    format_markets_overview,
 )
 
 # ---------------------------------------------------------------------------
@@ -393,7 +395,7 @@ async def _tool_get_earnings_upcoming(args: dict) -> str:
     async with QuantGistAPI() as api:
         events = await api.get_earnings_upcoming(limit=limit)
 
-    return format_event_list(events, f"Upcoming Earnings — next {limit} reports")
+    return format_earnings_list(events, f"Upcoming Earnings — next {limit} reports")
 
 
 async def _tool_get_earnings_for_ticker(args: dict) -> str:
@@ -405,7 +407,7 @@ async def _tool_get_earnings_for_ticker(args: dict) -> str:
     async with QuantGistAPI() as api:
         events = await api.get_earnings_for_ticker(ticker, limit=limit)
 
-    return format_event_list(events, f"Earnings History — {ticker}")
+    return format_earnings_list(events, f"Earnings History — {ticker}")
 
 
 async def _tool_get_earnings_summary(args: dict) -> str:
@@ -425,7 +427,7 @@ async def _tool_get_earnings_surprises(args: dict) -> str:
     async with QuantGistAPI() as api:
         surprises = await api.get_earnings_surprises(limit=limit)
 
-    return format_event_list(surprises, f"Top {limit} EPS Surprises")
+    return format_earnings_list(surprises, f"Top {limit} EPS Surprises")
 
 
 async def _tool_get_earnings_season_summary(args: dict) -> str:
@@ -442,9 +444,9 @@ async def _tool_get_earnings_season_summary(args: dict) -> str:
 
 async def _tool_get_markets_overview(args: dict) -> str:
     async with QuantGistAPI() as api:
-        quotes = await api.get_markets_overview()
+        overview = await api.get_markets_overview()
 
-    return format_event_list(quotes, "Markets Overview")
+    return format_markets_overview(overview)
 
 
 # ---------------------------------------------------------------------------

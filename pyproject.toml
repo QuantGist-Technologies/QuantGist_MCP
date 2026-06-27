@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quantgist-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server — exposes QuantGist macro event tools to Claude and AI agents"
 readme = "README.md"
 license = { text = "MIT" }
@@ -14,6 +14,8 @@ keywords = ["mcp", "model-context-protocol", "quantgist", "trading", "economic-c
 dependencies = [
     "mcp[cli]>=1.0.0",
     "httpx>=0.27.0",
+    "starlette>=0.37.0",
+    "uvicorn>=0.29.0",
 ]
 
 [project.urls]
@@ -23,6 +25,7 @@ Documentation = "https://quantgist.com/docs"
 
 [project.scripts]
 quantgist-mcp = "quantgist_mcp.server:main"
+quantgist-mcp-http = "quantgist_mcp.http:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/quantgist_mcp"]

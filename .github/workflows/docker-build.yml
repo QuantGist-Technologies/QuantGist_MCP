@@ -1,0 +1,79 @@
+name: Docker build & deploy
+
+# Builds a linux/arm64 image (the Coolify server is ARM64), pushes it to GHCR,
+# then triggers a Coolify redeploy that pulls the pre-built image. Mirrors the
+# quantgist-web pipeline so Coolify never has to build on the slow ARM box.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".github/workflows/docker-build.yml"
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/quantgist-technologies/quantgist-mcp
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger Coolify deploy
+        # Skips cleanly until the Coolify app uuid (a repo variable) is set.
+        if: vars.COOLIFY_MCP_DEPLOY_UUID != ''
+        env:
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+        run: |
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+            "https://coolify.quantgist.com/api/v1/deploy?uuid=${{ vars.COOLIFY_MCP_DEPLOY_UUID }}"
+
+      - name: Wait for health
+        if: vars.COOLIFY_MCP_DEPLOY_UUID != '' && vars.MCP_HEALTH_URL != ''
+        run: |
+          for i in $(seq 1 18); do
+            if curl -fsSL "${{ vars.MCP_HEALTH_URL }}" >/dev/null 2>&1; then
+              echo "healthy"; exit 0
+            fi
+            echo "waiting for health… ($i)"; sleep 10
+          done
+          echo "health check did not pass in time" >&2; exit 1
