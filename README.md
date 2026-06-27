@@ -4,7 +4,9 @@ Exposes [QuantGist](https://quantgist.com) macro-economic event data as **Model 
 
 ## What it does
 
-The server registers five tools that any MCP-compatible client (Claude Desktop, Claude Code, custom agents) can call:
+The server registers eleven tools that any MCP-compatible client (Claude Desktop, Claude Code, custom agents) can call:
+
+**Macro economic events**
 
 | Tool | Description |
 |------|-------------|
@@ -13,6 +15,22 @@ The server registers five tools that any MCP-compatible client (Claude Desktop, 
 | `check_safe_to_trade` | Is it safe to trade a symbol right now? (high-impact event proximity check) |
 | `get_economic_calendar` | Full day calendar grouped by time, formatted as a schedule |
 | `get_event_detail` | Full details for one event by ID (actual, forecast, previous, symbols) |
+
+**Earnings**
+
+| Tool | Description |
+|------|-------------|
+| `get_earnings_upcoming` | Next upcoming earnings reports across all tickers, with EPS/revenue estimates |
+| `get_earnings_for_ticker` | Earnings history for one ticker (estimate vs actual, beat/miss, EDGAR links) |
+| `get_earnings_summary` | Beat / miss / in-line counts and overall beat rate for a ticker |
+| `get_earnings_surprises` | Largest EPS surprises across the market in the latest reports |
+| `get_earnings_season_summary` | Index-level summary of the current earnings season |
+
+**Markets**
+
+| Tool | Description |
+|------|-------------|
+| `get_markets_overview` | End-of-day quotes for major indices and instruments (S&P 500, Nasdaq, gold, oil…) |
 
 ## Requirements
 
@@ -32,8 +50,8 @@ uv pip install quantgist-mcp
 ### Option B — install from source (development)
 
 ```bash
-git clone https://github.com/quantgist/quantgist-mcp
-cd quantgist-mcp
+git clone https://github.com/QuantGist-Technologies/QuantGist_MCP
+cd QuantGist_MCP
 uv sync          # installs all dependencies into a venv
 uv run quantgist-mcp   # start the server
 ```
@@ -170,6 +188,47 @@ Returns full detail for one event.
 |-----------|------|----------|-------------|
 | `event_id` | string | Yes | Event ID from any other tool |
 
+### `get_earnings_upcoming`
+
+Returns the next upcoming earnings reports across all tickers, ordered by report date.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer (1–100) | 20 | Number of upcoming reports to return |
+
+### `get_earnings_for_ticker`
+
+Returns earnings history for a single ticker (EPS estimate vs actual, revenue, beat/miss, EDGAR links).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ticker` | string | required | Stock ticker, e.g. "AAPL" |
+| `limit` | integer (1–50) | 10 | Number of historical reports to return |
+
+### `get_earnings_summary`
+
+Returns beat / miss / in-line counts and overall beat rate for a ticker.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ticker` | string | Yes | Stock ticker, e.g. "AAPL" |
+
+### `get_earnings_surprises`
+
+Returns the largest EPS surprises across the market in the most recent reports.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer (1–50) | 20 | Number of top surprises to return |
+
+### `get_earnings_season_summary`
+
+Returns the index-level summary of the current earnings season (total reports, overall beat rate, average EPS surprise, season label). No parameters.
+
+### `get_markets_overview`
+
+Returns end-of-day quotes for major market indices and instruments (S&P 500, Nasdaq, Dow Jones, gold, oil, etc.). No parameters.
+
 ## Example prompts
 
 These prompts work out of the box once the server is connected:
@@ -181,6 +240,10 @@ These prompts work out of the box once the server is connected:
 - "What macro events affect EURUSD this Friday?"
 - "Get me details on event ID abc123"
 - "Check if GBPUSD is safe to trade with a 15-minute buffer before events"
+- "Which companies report earnings soon?"
+- "Show me AAPL's earnings beat rate"
+- "What were the biggest EPS surprises this season?"
+- "Give me a quick market overview"
 
 ## Environment variables
 
