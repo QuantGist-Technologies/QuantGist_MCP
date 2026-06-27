@@ -25,7 +25,7 @@ production; both are enabled today.
 
 ---
 
-## MCP tools (11)
+## MCP tools (10)
 
 Macro events:
 
@@ -33,7 +33,6 @@ Macro events:
 |------|---------|
 | `get_upcoming_events` | `GET /events` (now → now+N hours) |
 | `get_events_range` | `GET /events` (explicit range + country/impact/symbol filters) |
-| `check_safe_to_trade` | `GET /events` ×2 (global 2h window + symbol-filtered window) |
 | `get_economic_calendar` | `GET /events` (single day, grouped by release time) |
 | `get_event_detail` | `GET /events/{id}` |
 
@@ -126,8 +125,8 @@ Or without installing, via `uv run --directory`:
 ## Rules
 
 - Tools return human-readable text built by `formatters.py`, except the structured
-  tools (`check_safe_to_trade`, `get_earnings_summary`, `get_earnings_season_summary`)
-  which return indented JSON. Keep new event-list tools going through `format_event_list`.
+  tools (`get_earnings_summary`, `get_earnings_season_summary`) which return indented
+  JSON. Keep new event-list tools going through `format_event_list`.
 - Always surface `release_time_utc` (or `release_time`) in event output — callers need raw timestamps.
 - Errors are caught in `call_tool` and returned as JSON envelopes:
   `{ "error": "api_error" | "invalid_input" | "internal_error", "detail": "..." }`.

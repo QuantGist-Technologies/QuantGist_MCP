@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.QuantGist-Technologies/quantgist-mcp",
+  "description": "Query QuantGist macro-economic events, earnings, and market snapshots from Claude and other AI agents.",
+  "title": "QuantGist",
+  "repository": {
+    "url": "https://github.com/QuantGist-Technologies/QuantGist_MCP",
+    "source": "github"
+  },
+  "websiteUrl": "https://quantgist.com",
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "quantgist-mcp",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "QUANTGIST_API_KEY",
+          "description": "QuantGist API key (qg_live_... or qg_test_...). Get one free at https://quantgist.com",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
