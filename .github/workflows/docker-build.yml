@@ -68,12 +68,17 @@ jobs:
             "https://coolify.quantgist.com/api/v1/deploy?uuid=${{ vars.COOLIFY_MCP_DEPLOY_UUID }}"
 
       - name: Wait for health
+        # MCP_HEALTH_URL should be https://api.quantgist.com/mcp. A bare GET there
+        # returns 307 (Starlette mount adds the trailing slash) — that uniquely proves
+        # OUR container answered. 404 = routed to the backend; 502/000 = container down.
         if: vars.COOLIFY_MCP_DEPLOY_UUID != '' && vars.MCP_HEALTH_URL != ''
         run: |
           for i in $(seq 1 18); do
-            if curl -fsSL "${{ vars.MCP_HEALTH_URL }}" >/dev/null 2>&1; then
-              echo "healthy"; exit 0
-            fi
-            echo "waiting for health… ($i)"; sleep 10
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${{ vars.MCP_HEALTH_URL }}" || echo 000)
+            echo "attempt $i: HTTP $code"
+            case "$code" in
+              200|307) echo "healthy"; exit 0 ;;
+            esac
+            sleep 10
           done
           echo "health check did not pass in time" >&2; exit 1

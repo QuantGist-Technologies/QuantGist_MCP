@@ -35,8 +35,37 @@ The server registers ten tools that any MCP-compatible client (Claude Desktop, C
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10+ (for the local/stdio install — not needed for the hosted server)
 - A QuantGist API key — get one at [quantgist.com](https://quantgist.com) (free tier: 100 calls/day)
+
+## Connect to the hosted server (no install)
+
+The MCP server is hosted over HTTP at **`https://api.quantgist.com/mcp`** — no install, no
+Python. Any client that supports the streamable-HTTP transport can connect by sending your
+QuantGist key in an `X-API-Key` header (multi-tenant: billed to your own quota).
+
+Claude Code, in one command:
+
+```bash
+claude mcp add --transport http quantgist https://api.quantgist.com/mcp \
+  --header "X-API-Key: qg_live_YOUR_KEY"
+```
+
+Any streamable-HTTP MCP client:
+
+```json
+{
+  "mcpServers": {
+    "quantgist": {
+      "type": "streamable-http",
+      "url": "https://api.quantgist.com/mcp",
+      "headers": { "X-API-Key": "qg_live_YOUR_KEY" }
+    }
+  }
+}
+```
+
+Prefer to run it yourself? Install locally (below) or self-host the HTTP server — see [DEPLOY.md](DEPLOY.md).
 
 ## Installation
 

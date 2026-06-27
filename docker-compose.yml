@@ -11,12 +11,14 @@ services:
     image: ghcr.io/quantgist-technologies/quantgist-mcp:latest
     restart: unless-stopped
     environment:
-      # Server-side fallback key. Callers may instead pass their own key via the
-      # X-API-Key header (multi-tenant). Coolify injects this from its env store.
-      - QUANTGIST_API_KEY=${QUANTGIST_API_KEY}
+      # MULTI-TENANT: no server-side key. Every caller must send their own QuantGist
+      # key in the X-API-Key header, billed to their own quota. (To run single-tenant
+      # instead, add QUANTGIST_API_KEY here and lock the endpoint behind access control.)
       - PORT=8000
       - HOST=0.0.0.0
-    # Coolify sets the public domain + TLS via its proxy; it reads this port.
+    # No Coolify domain is set for this app: routing to api.quantgist.com/mcp is handled
+    # by the priority-2000 Traefik file-router (deploy/traefik-mcp.yml), which targets this
+    # service's network alias `quantgist-mcp:8000`. See DEPLOY.md § "Current live deployment".
     expose:
       - "8000"
     healthcheck:
