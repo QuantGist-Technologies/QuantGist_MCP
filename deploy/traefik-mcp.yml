@@ -1,0 +1,26 @@
+# Traefik file-provider router for api.quantgist.com/mcp.
+#
+# Install into the coolify-proxy dynamic config dir:
+#   docker cp deploy/traefik-mcp.yml coolify-proxy:/traefik/dynamic/mcp.yml
+# (host path: /data/coolify/proxy/dynamic/mcp.yml — Traefik watches & hot-reloads)
+#
+# WHY this exists: Cloudflare connects to the origin over the HTTP entrypoint, and an
+# existing override (api-no-redirect.yml) routes ALL of Host(`api.quantgist.com`) to
+# the backend with priority 1000. This router is more specific (PathPrefix `/mcp`) AND
+# higher priority (2000), so /mcp* goes to the MCP container while everything else
+# stays with the backend. The MCP container must share the proxy network so the proxy
+# can resolve `quantgist-mcp` by name.
+http:
+  routers:
+    mcp-qg:
+      rule: "Host(`api.quantgist.com`) && PathPrefix(`/mcp`)"
+      entryPoints:
+        - http
+      service: mcp-qg-backend
+      priority: 2000
+
+  services:
+    mcp-qg-backend:
+      loadBalancer:
+        servers:
+          - url: "http://quantgist-mcp:8000"

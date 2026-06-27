@@ -164,3 +164,50 @@ Confirm:
 ```bash
 curl https://mcp.quantgist.com/health
 ```
+
+---
+
+## 6. Current live deployment (`api.quantgist.com/mcp`)
+
+The production instance is **live at `https://api.quantgist.com/mcp`**, multi-tenant (callers send
+their own `X-API-Key`). It runs as a **standalone compose stack on the Coolify host**, routed by the
+existing `coolify-proxy` (Traefik) — *not* (yet) a Coolify-managed app. Files: `deploy/compose.host.yml`
+and `deploy/traefik-mcp.yml`.
+
+**Why a file-provider router:** Cloudflare connects to the origin over Traefik's **HTTP** entrypoint,
+and an existing override (`/traefik/dynamic/api-no-redirect.yml`, `rule: Host(api.quantgist.com)`,
+`priority: 1000`) sends the whole host to the backend. `deploy/traefik-mcp.yml` is more specific
+(`PathPrefix(/mcp)`) and higher priority (`2000`), so only `/mcp*` reaches the MCP container; all
+other paths stay with the backend, untouched.
+
+**Update the live instance:**
+```bash
+ssh coolify
+cd ~/quantgist-mcp-host/repo
+git fetch --tags && git checkout v<NEW>     # or: git pull (main)
+docker compose -f deploy/compose.host.yml up -d --build
+# If the Traefik router file changed:
+docker cp deploy/traefik-mcp.yml coolify-proxy:/traefik/dynamic/mcp.yml
+```
+
+**Verify:**
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://api.quantgist.com/mcp   # 307 (mount slash) — OK
+curl -s -o /dev/null -w "%{http_code}\n" https://api.quantgist.com/v1/changelog  # 200 — backend intact
+```
+
+**Connect a client:**
+```bash
+claude mcp add --transport http quantgist https://api.quantgist.com/mcp \
+  --header "X-API-Key: qg_live_YOUR_KEY"
+```
+
+**Roll back / remove:**
+```bash
+ssh coolify "cd ~/quantgist-mcp-host/repo && docker compose -f deploy/compose.host.yml down; \
+  docker exec coolify-proxy rm -f /traefik/dynamic/mcp.yml"
+```
+
+> **Migration to a managed Coolify app + GHA auto-deploy** (§5) is the eventual target — it just needs
+> the GHCR package made public, the Coolify app created, and `COOLIFY_MCP_DEPLOY_UUID` set as a repo
+> variable. Until then, updates are the manual `git pull && docker compose ... up -d --build` above.

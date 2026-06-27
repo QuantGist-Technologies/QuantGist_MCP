@@ -1,0 +1,46 @@
+# LIVE deployment of quantgist-mcp on the Coolify host (api.quantgist.com/mcp).
+#
+# This is a standalone compose stack (not a Coolify-managed app) routed by the
+# existing coolify-proxy (Traefik). Multi-tenant: NO server-side key — callers
+# send their own QuantGist key in the X-API-Key header.
+#
+# Deploy / update (from the repo checked out on the host):
+#   git pull && docker compose -f deploy/compose.host.yml up -d --build
+#
+# Traefik routing is provided by deploy/traefik-mcp.yml (installed into the proxy's
+# dynamic config dir) — see DEPLOY.md § "Current live deployment".
+services:
+  quantgist-mcp:
+    build: ..
+    image: quantgist-mcp:host
+    container_name: quantgist-mcp
+    restart: unless-stopped
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+    networks:
+      - proxy
+    labels:
+      # HTTPS entrypoint coverage (direct-to-origin). The HTTP entrypoint that
+      # Cloudflare actually uses is routed by deploy/traefik-mcp.yml (file provider),
+      # which must outrank the priority-1000 api-no-redirect.yml router.
+      - "traefik.enable=true"
+      - "traefik.docker.network=zcf7gr0s8pn6lt6cyeapikjt"
+      - "traefik.http.routers.mcp-qg-https.entryPoints=https"
+      - "traefik.http.routers.mcp-qg-https.rule=Host(`api.quantgist.com`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.mcp-qg-https.priority=2000"
+      - "traefik.http.routers.mcp-qg-https.tls=true"
+      - "traefik.http.routers.mcp-qg-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mcp-qg-https.service=mcp-qg"
+      - "traefik.http.services.mcp-qg.loadbalancer.server.port=8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  proxy:
+    name: zcf7gr0s8pn6lt6cyeapikjt
+    external: true
