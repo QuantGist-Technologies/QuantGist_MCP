@@ -2,6 +2,8 @@
 
 <!-- mcp-name: io.github.QuantGist-Technologies/quantgist-mcp -->
 
+[![smithery badge](https://smithery.ai/badge/quantgist/quantgist-mcp)](https://smithery.ai/servers/quantgist/quantgist-mcp)
+
 Exposes [QuantGist](https://quantgist.com) macro-economic event data as **Model Context Protocol (MCP)** tools so Claude and other AI agents can query calendars, check event proximity, and assess trade safety — all within a conversation.
 
 ## What it does
