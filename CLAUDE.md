@@ -97,8 +97,8 @@ uv run ruff format src/       # format
 uv build                      # build sdist + wheel into dist/
 ```
 
-To publish a new release: bump `version` in `pyproject.toml` and `__version__` in
-`__init__.py`, update `CHANGELOG.md`, then `uv build && uv publish`.
+Releases publish automatically — see **Release & deploy** below. Do **not** run `uv publish`
+manually (PyPI uses trusted publishing via CI on `v*` tags).
 
 ---
 
@@ -135,15 +135,56 @@ Or without installing, via `uv run --directory`:
 
 ## Rules
 
-- Tools return human-readable text built by `formatters.py`, except the structured
-  tools (`get_earnings_summary`, `get_earnings_season_summary`) which return indented
-  JSON. Keep new event-list tools going through `format_event_list`.
-- Always surface `release_time_utc` (or `release_time`) in event output — callers need raw timestamps.
-- Errors are caught in `call_tool` and returned as JSON envelopes:
-  `{ "error": "api_error" | "invalid_input" | "internal_error", "detail": "..." }`.
-  Raise `QuantGistAPIError` from `api.py` for non-2xx upstream responses.
-- Never hardcode the API key — always read `QUANTGIST_API_KEY` from the env. `main()`
-  fails fast at startup if it's missing.
-- Keep tool descriptions concise and precise — they land directly in the model's tool list.
-- When adding a tool: add the schema to `TOOLS`, add a `_tool_*` handler, register it in
-  the `_dispatch` `handlers` dict, and document it in `README.md`.
+- **Every tool handler returns a `(text, structured)` tuple.** `text` is the human-readable
+  rendering (via `formatters.py`); `structured` is a JSON-serializable **dict** matching the tool's
+  `outputSchema`. List tools wrap as `{"events"|"earnings": [...], "count": N}`; detail/summary/markets
+  tools return the underlying object. `call_tool` returns `([TextContent], structured)`.
+- Always surface `release_time` / `release_time_utc` in event output — callers need raw timestamps.
+- **Errors return `types.CallToolResult(isError=True)`** (via `_error_result`) — NOT a tuple. This
+  bypasses `outputSchema` validation. Raise `QuantGistAPIError` from `api.py` for non-2xx upstream.
+- Never hardcode the API key. stdio reads `QUANTGIST_API_KEY` (fails fast in `main()`); HTTP reads the
+  per-request `X-API-Key` header via the `api.py` contextvar, env as fallback.
+- Keep tool + parameter descriptions concise and precise — they land in the model's context and are
+  scored by registries.
+- **Adding a tool — do ALL of these** or scans/score regress:
+  1. Append the `types.Tool` to `TOOLS` (with `description` + per-param `description`).
+  2. Add an entry to `_TOOL_TITLES` and `_OUTPUT_SCHEMAS` (the post-`TOOLS` loop attaches
+     `title` + `annotations` + `outputSchema`).
+  3. Write a `_tool_*` handler returning `(text, structured_dict)`.
+  4. Register it in the `_dispatch` `handlers` dict.
+  5. Document it in `README.md` **and** `web/.../docs/mcp/page.tsx` (keep tool counts in sync).
+
+---
+
+## Release & deploy
+
+One tag ships everything. To cut a release:
+
+1. Bump version in **all three**: `pyproject.toml`, `src/quantgist_mcp/__init__.py`, and
+   `server.json` (×2 — top-level + package). Update `CHANGELOG.md`.
+2. `git commit && git push origin main` — push to `main` triggers **`docker-build.yml`**: build
+   `linux/arm64` → push `ghcr.io/quantgist-technologies/quantgist-mcp` → call the Coolify deploy
+   webhook → live host pulls + redeploys (`pull_policy: always`) → health-gate on `/mcp/health`.
+3. `git tag -a vX.Y.Z -m … && git push origin vX.Y.Z` — the tag triggers **`ci.yml`**: PyPI
+   (trusted publishing, OIDC) + official MCP Registry (`mcp-publisher`, OIDC).
+4. After it lands, the user re-publishes on **Smithery** (dashboard) to re-scan.
+
+CI secrets/vars already set: secret `COOLIFY_API_TOKEN`; vars `COOLIFY_MCP_DEPLOY_UUID`
+(`ob3ch1y0yudvpsm9m6w2u4ri`), `MCP_HEALTH_URL` (`/mcp/health`). Full ops runbook: `DEPLOY.md`.
+Distribution/registry guide: `../../internals/mcp-distribution.md`. Cross-MCP playbook:
+`../../0planning/MCP-checklist.md`.
+
+---
+
+## Critical invariants (do not regress)
+
+- **HTTP: serve the MCP app at the mount ROOT** (`Mount("/", _root)` in `http.py`), never
+  `Mount("/mcp", …)`. The sub-mount adds a **307** trailing-slash redirect that strict gateways
+  (Smithery) won't follow on POST → init 502. `POST /mcp` must return **200**, not 307.
+- Keep the **empty `list_resources` / `list_prompts` handlers** (avoids "method not found" in scans).
+- Keep **annotations + `outputSchema` on every tool** (capability-quality score; machine readability).
+- `server.json` `description` ≤ **100 chars**; `version` == PyPI version; README keeps the
+  `mcp-name: io.github.QuantGist-Technologies/quantgist-mcp` marker (registry ownership check).
+- `docker-compose.yml`: keep `pull_policy: always`, no Coolify domain (routing is the Traefik
+  file-router `deploy/traefik-mcp.yml`, priority 2000 — it must outrank `api-no-redirect.yml`).
+- Coolify auto-deploy stays **off**; only CI triggers deploys.
