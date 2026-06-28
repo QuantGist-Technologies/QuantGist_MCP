@@ -170,9 +170,21 @@ curl https://mcp.quantgist.com/health
 ## 6. Current live deployment (`api.quantgist.com/mcp`)
 
 The production instance is **live at `https://api.quantgist.com/mcp`**, multi-tenant (callers send
-their own `X-API-Key`). It runs as a **standalone compose stack on the Coolify host**, routed by the
-existing `coolify-proxy` (Traefik) — *not* (yet) a Coolify-managed app. Files: `deploy/compose.host.yml`
-and `deploy/traefik-mcp.yml`.
+their own `X-API-Key`). It runs as a **managed Coolify Docker-Compose app** (build pack
+`dockercompose`, deploying this repo's `docker-compose.yml`, which pulls the public GHCR image),
+auto-deployed by GitHub Actions.
+
+- Coolify app uuid: **`ob3ch1y0yudvpsm9m6w2u4ri`** (project "My first project" / env `orchville`,
+  server `localhost`). Auto-deploy-on-git-push is **off** — only GHA triggers deploys.
+- **Auto-deploy chain:** push to `main` (touching `src/**`, `Dockerfile`, `docker-compose.yml`, or
+  the workflow) → `.github/workflows/docker-build.yml` builds `linux/arm64` → pushes to
+  `ghcr.io/quantgist-technologies/quantgist-mcp` → calls Coolify's deploy webhook
+  (`POST /api/v1/deploy?uuid=…`, using repo secret `COOLIFY_API_TOKEN` + var
+  `COOLIFY_MCP_DEPLOY_UUID`) → Coolify pulls the new image and redeploys → the workflow waits on
+  `MCP_HEALTH_URL` (`/mcp/health` → 200).
+- **Routing** is still handled by the Traefik file-router `deploy/traefik-mcp.yml` (copied to
+  `coolify-proxy:/traefik/dynamic/mcp.yml`). The managed container keeps the compose service alias
+  `quantgist-mcp` on its app network (proxy joined), so `quantgist-mcp:8000` resolves across redeploys.
 
 **Why a file-provider router:** Cloudflare connects to the origin over Traefik's **HTTP** entrypoint,
 and an existing override (`/traefik/dynamic/api-no-redirect.yml`, `rule: Host(api.quantgist.com)`,
@@ -180,15 +192,15 @@ and an existing override (`/traefik/dynamic/api-no-redirect.yml`, `rule: Host(ap
 (`PathPrefix(/mcp)`) and higher priority (`2000`), so only `/mcp*` reaches the MCP container; all
 other paths stay with the backend, untouched.
 
-**Update the live instance:**
-```bash
-ssh coolify
-cd ~/quantgist-mcp-host/repo
-git fetch --tags && git checkout v<NEW>     # or: git pull (main)
-docker compose -f deploy/compose.host.yml up -d --build
-# If the Traefik router file changed:
-docker cp deploy/traefik-mcp.yml coolify-proxy:/traefik/dynamic/mcp.yml
-```
+**Update the live instance:** just ship a normal release — `git tag -a vX.Y.Z … && git push origin
+vX.Y.Z` publishes to PyPI/registry, and a push to `main` triggers the GHA → GHCR → Coolify webhook
+deploy automatically. To force a redeploy without a code change: `gh workflow run docker-build.yml`,
+or hit the Coolify webhook directly.
+
+**Rollback / manual fallback:** the standalone stack (`deploy/compose.host.yml`) on the host
+(`~/quantgist-mcp-host/repo`) is the break-glass option — `docker compose -f deploy/compose.host.yml
+up -d --build` brings up a `quantgist-mcp`-aliased container the same file-router will route to
+(stop the managed app's container first to avoid an alias clash).
 
 **Verify:**
 ```bash
@@ -203,12 +215,9 @@ claude mcp add --transport http quantgist https://api.quantgist.com/mcp \
   --header "X-API-Key: qg_live_YOUR_KEY"
 ```
 
-**Roll back / remove:**
+**Tear down completely** (only if retiring the endpoint):
 ```bash
-ssh coolify "cd ~/quantgist-mcp-host/repo && docker compose -f deploy/compose.host.yml down; \
-  docker exec coolify-proxy rm -f /traefik/dynamic/mcp.yml"
+# Stop the managed app via Coolify, then remove the Traefik route:
+ssh coolify "docker exec coolify-proxy rm -f /traefik/dynamic/mcp.yml"
+# (Deleting the Coolify app itself is done from the Coolify UI or DELETE /api/v1/applications/<uuid>.)
 ```
-
-> **Migration to a managed Coolify app + GHA auto-deploy** (§5) is the eventual target — it just needs
-> the GHCR package made public, the Coolify app created, and `COOLIFY_MCP_DEPLOY_UUID` set as a repo
-> variable. Until then, updates are the manual `git pull && docker compose ... up -d --build` above.
