@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 - 2026-06-28
+
+- Register empty `resources/list` and `prompts/list` handlers so capability scans
+  (e.g. Smithery) no longer log "method not found" warnings for this tools-only server.
+
 ## 0.3.1 - 2026-06-28
 
 - Fixed the HTTP transport returning a `307` trailing-slash redirect on `/mcp`. The MCP

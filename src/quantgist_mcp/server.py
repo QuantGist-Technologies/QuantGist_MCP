@@ -249,6 +249,19 @@ async def list_tools() -> list[types.Tool]:
     return TOOLS
 
 
+# This server exposes tools only. Registering empty resource/prompt list handlers
+# makes resources/list and prompts/list return [] instead of "method not found",
+# which keeps client/registry capability scans (e.g. Smithery) warning-free.
+@server.list_resources()
+async def list_resources() -> list[types.Resource]:
+    return []
+
+
+@server.list_prompts()
+async def list_prompts() -> list[types.Prompt]:
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Tool call handler
 # ---------------------------------------------------------------------------
