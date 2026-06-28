@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import os
 from collections.abc import AsyncIterator
+from urllib.parse import parse_qs
 
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
@@ -38,11 +39,39 @@ _session_manager = StreamableHTTPSessionManager(
 )
 
 
-async def _handle_mcp(scope: Scope, receive: Receive, send: Send) -> None:
-    """ASGI handler that binds the caller's X-API-Key (if any) for the request."""
+def _extract_api_key(scope: Scope) -> str | None:
+    """Resolve the caller's QuantGist key, in priority order:
+
+    1. ``X-API-Key`` header (preferred).
+    2. ``Authorization: Bearer <key>`` header.
+    3. ``?apiKey=`` / ``?api_key=`` / ``?key=`` query parameter — for connector UIs
+       (e.g. ChatGPT) that only accept a URL and can't set custom headers.
+    """
     headers = dict(scope.get("headers") or [])
-    raw_key = headers.get(b"x-api-key")
-    token = set_request_api_key(raw_key.decode() if raw_key else None)
+
+    raw = headers.get(b"x-api-key")
+    if raw:
+        return raw.decode()
+
+    auth = headers.get(b"authorization")
+    if auth:
+        value = auth.decode()
+        if value.lower().startswith("bearer "):
+            return value[7:].strip()
+
+    qs = scope.get("query_string") or b""
+    if qs:
+        params = parse_qs(qs.decode())
+        for name in ("apiKey", "api_key", "key", "x-api-key"):
+            if params.get(name):
+                return params[name][0]
+
+    return None
+
+
+async def _handle_mcp(scope: Scope, receive: Receive, send: Send) -> None:
+    """ASGI handler that binds the caller's API key (if any) for the request."""
+    token = set_request_api_key(_extract_api_key(scope))
     try:
         await _session_manager.handle_request(scope, receive, send)
     finally:

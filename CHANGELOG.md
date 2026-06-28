@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5 - 2026-06-28
+
+- HTTP transport now also accepts the API key via `?apiKey=` (or `?api_key=`/`?key=`)
+  query parameter and `Authorization: Bearer`, in addition to the `X-API-Key` header.
+  Lets connector UIs that only accept a URL (e.g. ChatGPT) authenticate without headers.
+
 ## 0.3.4 - 2026-06-28
 
 - Tools now return machine-readable `structuredContent` and declare `outputSchema`. List
