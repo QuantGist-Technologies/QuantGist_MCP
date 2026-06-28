@@ -67,6 +67,11 @@ Any streamable-HTTP MCP client:
 }
 ```
 
+**Connectors that only accept a URL (e.g. ChatGPT):** if you can't set a custom header, put the
+key in the URL instead — `https://api.quantgist.com/mcp?apiKey=qg_live_YOUR_KEY` (also accepts
+`Authorization: Bearer <key>`). The header is preferred where possible, since a key in the URL can
+be recorded in proxy/server logs.
+
 Prefer to run it yourself? Install locally (below) or self-host the HTTP server — see [DEPLOY.md](DEPLOY.md).
 
 ## Installation
