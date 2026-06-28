@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4 - 2026-06-28
+
+- Tools now return machine-readable `structuredContent` and declare `outputSchema`. List
+  tools return `{ "<events|earnings>": [...], "count": N }`; detail/summary/markets tools
+  return the underlying object. Errors return `isError` results (no schema constraint).
+
 ## 0.3.3 - 2026-06-28
 
 - Added human-readable `title` and behavioural `annotations` (readOnlyHint, destructiveHint,

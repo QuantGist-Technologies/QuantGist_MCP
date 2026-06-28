@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 from datetime import date, datetime
+from typing import Any
 
 from mcp import types
 from mcp.server import Server
@@ -256,8 +257,55 @@ _TOOL_TITLES: dict[str, str] = {
     "get_markets_overview": "Markets Overview",
 }
 
+# Output schemas. Each tool also returns machine-readable `structuredContent` matching
+# these. Item shapes are left as open objects (records carry many optional, often-null
+# fields) — the wrapper (array + count) is what callers iterate on.
+_ITEM = {"type": "object", "additionalProperties": True}
+
+
+def _list_out(key: str) -> dict:
+    return {
+        "type": "object",
+        "properties": {key: {"type": "array", "items": _ITEM}, "count": {"type": "integer"}},
+        "required": [key, "count"],
+    }
+
+
+_OPEN_OBJECT = {"type": "object", "additionalProperties": True}
+
+_OUTPUT_SCHEMAS: dict[str, dict] = {
+    "get_upcoming_events": _list_out("events"),
+    "get_events_range": _list_out("events"),
+    "get_economic_calendar": {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string"},
+            "events": {"type": "array", "items": _ITEM},
+            "count": {"type": "integer"},
+        },
+        "required": ["date", "events", "count"],
+    },
+    "get_event_detail": _OPEN_OBJECT,
+    "get_earnings_upcoming": _list_out("earnings"),
+    "get_earnings_for_ticker": _list_out("earnings"),
+    "get_earnings_summary": _OPEN_OBJECT,
+    "get_earnings_surprises": _list_out("earnings"),
+    "get_earnings_season_summary": _OPEN_OBJECT,
+    "get_markets_overview": {
+        "type": "object",
+        "properties": {
+            "as_of": {"type": "string"},
+            "recency": {"type": "string"},
+            "delay_minutes": {"type": "integer"},
+            "groups": {"type": "array", "items": _ITEM},
+        },
+        "additionalProperties": True,
+    },
+}
+
 for _tool in TOOLS:
     _tool.title = _TOOL_TITLES.get(_tool.name)
+    _tool.outputSchema = _OUTPUT_SCHEMAS.get(_tool.name)
     _tool.annotations = types.ToolAnnotations(
         title=_TOOL_TITLES.get(_tool.name),
         readOnlyHint=True,
@@ -294,32 +342,40 @@ async def list_prompts() -> list[types.Prompt]:
 # ---------------------------------------------------------------------------
 
 
+def _error_result(error: str, detail: str, **extra: Any) -> types.CallToolResult:
+    """Build an isError result. Returned as CallToolResult so it bypasses the
+    outputSchema validation that applies to successful structured results."""
+    payload = {"error": error, "detail": detail, **extra}
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=json.dumps(payload, indent=2))],
+        isError=True,
+    )
+
+
 @server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    """Dispatch MCP tool calls to the appropriate handler."""
+async def call_tool(
+    name: str, arguments: dict
+) -> tuple[list[types.TextContent], dict[str, Any]] | types.CallToolResult:
+    """Dispatch MCP tool calls. Returns (text content, structured content) on success."""
     try:
-        result = await _dispatch(name, arguments)
-        return [types.TextContent(type="text", text=result)]
+        text, structured = await _dispatch(name, arguments)
+        return [types.TextContent(type="text", text=text)], structured
     except QuantGistAPIError as exc:
-        error_payload = json.dumps(
-            {"error": "api_error", "detail": exc.detail, "status_code": exc.status_code},
-            indent=2,
-        )
-        return [types.TextContent(type="text", text=error_payload)]
+        return _error_result("api_error", exc.detail, status_code=exc.status_code)
     except ValueError as exc:
-        error_payload = json.dumps({"error": "invalid_input", "detail": str(exc)}, indent=2)
-        return [types.TextContent(type="text", text=error_payload)]
+        return _error_result("invalid_input", str(exc))
     except Exception as exc:  # noqa: BLE001
-        error_payload = json.dumps({"error": "internal_error", "detail": str(exc)}, indent=2)
-        return [types.TextContent(type="text", text=error_payload)]
+        return _error_result("internal_error", str(exc))
 
 
 # ---------------------------------------------------------------------------
 # Individual tool implementations
 # ---------------------------------------------------------------------------
+# Each handler returns a (text, structured) tuple: human-readable text plus a
+# JSON-serializable dict matching the tool's outputSchema.
 
 
-async def _dispatch(name: str, args: dict) -> str:
+async def _dispatch(name: str, args: dict) -> tuple[str, dict[str, Any]]:
     handlers = {
         "get_upcoming_events": _tool_get_upcoming_events,
         "get_events_range": _tool_get_events_range,
@@ -340,7 +396,7 @@ async def _dispatch(name: str, args: dict) -> str:
     return await handler(args)
 
 
-async def _tool_get_upcoming_events(args: dict) -> str:
+async def _tool_get_upcoming_events(args: dict) -> tuple[str, dict[str, Any]]:
     hours = int(args.get("hours", 24))
     impact = str(args.get("impact", "high"))
 
@@ -352,10 +408,10 @@ async def _tool_get_upcoming_events(args: dict) -> str:
 
     impact_label = f" ({impact} impact)" if impact != "all" else ""
     title = f"Upcoming Events — next {hours}h{impact_label}"
-    return format_event_list(events, title)
+    return format_event_list(events, title), {"events": events, "count": len(events)}
 
 
-async def _tool_get_events_range(args: dict) -> str:
+async def _tool_get_events_range(args: dict) -> tuple[str, dict[str, Any]]:
     from_date = args.get("from_date")
     to_date = args.get("to_date")
     if not from_date or not to_date:
@@ -382,10 +438,10 @@ async def _tool_get_events_range(args: dict) -> str:
     if symbol:
         parts.append(f"symbol={symbol}")
     title = "Events — " + ", ".join(parts)
-    return format_event_list(events, title)
+    return format_event_list(events, title), {"events": events, "count": len(events)}
 
 
-async def _tool_get_economic_calendar(args: dict) -> str:
+async def _tool_get_economic_calendar(args: dict) -> tuple[str, dict[str, Any]]:
     date_str = str(args.get("date", "")).strip()
     if not date_str:
         date_str = date.today().isoformat()
@@ -408,10 +464,13 @@ async def _tool_get_economic_calendar(args: dict) -> str:
             impact=impact,
         )
 
-    return format_calendar(events, date_str)
+    return (
+        format_calendar(events, date_str),
+        {"date": date_str, "events": events, "count": len(events)},
+    )
 
 
-async def _tool_get_event_detail(args: dict) -> str:
+async def _tool_get_event_detail(args: dict) -> tuple[str, dict[str, Any]]:
     event_id = str(args.get("event_id", "")).strip()
     if not event_id:
         raise ValueError("event_id is required")
@@ -419,7 +478,7 @@ async def _tool_get_event_detail(args: dict) -> str:
     async with QuantGistAPI() as api:
         event = await api.get_event(event_id)
 
-    return format_event_detail(event)
+    return format_event_detail(event), event
 
 
 # ---------------------------------------------------------------------------
@@ -427,7 +486,7 @@ async def _tool_get_event_detail(args: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def _tool_get_earnings_upcoming(args: dict) -> str:
+async def _tool_get_earnings_upcoming(args: dict) -> tuple[str, dict[str, Any]]:
     limit = int(args.get("limit", 20))
     if not 1 <= limit <= 100:
         raise ValueError("limit must be between 1 and 100")
@@ -435,10 +494,11 @@ async def _tool_get_earnings_upcoming(args: dict) -> str:
     async with QuantGistAPI() as api:
         events = await api.get_earnings_upcoming(limit=limit)
 
-    return format_earnings_list(events, f"Upcoming Earnings — next {limit} reports")
+    text = format_earnings_list(events, f"Upcoming Earnings — next {limit} reports")
+    return text, {"earnings": events, "count": len(events)}
 
 
-async def _tool_get_earnings_for_ticker(args: dict) -> str:
+async def _tool_get_earnings_for_ticker(args: dict) -> tuple[str, dict[str, Any]]:
     ticker = str(args.get("ticker", "")).strip().upper()
     if not ticker:
         raise ValueError("ticker is required")
@@ -447,10 +507,11 @@ async def _tool_get_earnings_for_ticker(args: dict) -> str:
     async with QuantGistAPI() as api:
         events = await api.get_earnings_for_ticker(ticker, limit=limit)
 
-    return format_earnings_list(events, f"Earnings History — {ticker}")
+    text = format_earnings_list(events, f"Earnings History — {ticker}")
+    return text, {"earnings": events, "count": len(events)}
 
 
-async def _tool_get_earnings_summary(args: dict) -> str:
+async def _tool_get_earnings_summary(args: dict) -> tuple[str, dict[str, Any]]:
     ticker = str(args.get("ticker", "")).strip().upper()
     if not ticker:
         raise ValueError("ticker is required")
@@ -458,23 +519,24 @@ async def _tool_get_earnings_summary(args: dict) -> str:
     async with QuantGistAPI() as api:
         summary = await api.get_earnings_summary(ticker)
 
-    return json.dumps(summary, indent=2, default=str)
+    return json.dumps(summary, indent=2, default=str), summary
 
 
-async def _tool_get_earnings_surprises(args: dict) -> str:
+async def _tool_get_earnings_surprises(args: dict) -> tuple[str, dict[str, Any]]:
     limit = int(args.get("limit", 20))
 
     async with QuantGistAPI() as api:
         surprises = await api.get_earnings_surprises(limit=limit)
 
-    return format_earnings_list(surprises, f"Top {limit} EPS Surprises")
+    text = format_earnings_list(surprises, f"Top {limit} EPS Surprises")
+    return text, {"earnings": surprises, "count": len(surprises)}
 
 
-async def _tool_get_earnings_season_summary(args: dict) -> str:
+async def _tool_get_earnings_season_summary(args: dict) -> tuple[str, dict[str, Any]]:
     async with QuantGistAPI() as api:
         summary = await api.get_earnings_season_summary()
 
-    return json.dumps(summary, indent=2, default=str)
+    return json.dumps(summary, indent=2, default=str), summary
 
 
 # ---------------------------------------------------------------------------
@@ -482,11 +544,12 @@ async def _tool_get_earnings_season_summary(args: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def _tool_get_markets_overview(args: dict) -> str:
+async def _tool_get_markets_overview(args: dict) -> tuple[str, dict[str, Any]]:
     async with QuantGistAPI() as api:
         overview = await api.get_markets_overview()
 
-    return format_markets_overview(overview)
+    structured = overview if isinstance(overview, dict) else {"groups": overview}
+    return format_markets_overview(overview), structured
 
 
 # ---------------------------------------------------------------------------
