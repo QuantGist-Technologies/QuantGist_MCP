@@ -192,7 +192,8 @@ docker cp deploy/traefik-mcp.yml coolify-proxy:/traefik/dynamic/mcp.yml
 
 **Verify:**
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" https://api.quantgist.com/mcp   # 307 (mount slash) — OK
+curl -s -o /dev/null -w "%{http_code}\n" https://api.quantgist.com/mcp/health  # 200 — MCP container up
+curl -s -o /dev/null -w "%{http_code}\n" https://api.quantgist.com/mcp          # 406 — MCP endpoint (no redirect)
 curl -s -o /dev/null -w "%{http_code}\n" https://api.quantgist.com/v1/changelog  # 200 — backend intact
 ```
 
