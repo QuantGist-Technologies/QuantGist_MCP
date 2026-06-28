@@ -21,9 +21,8 @@ from collections.abc import AsyncIterator
 
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
-from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route
+from starlette.routing import Mount
 from starlette.types import Receive, Scope, Send
 
 from quantgist_mcp import __version__
@@ -50,8 +49,26 @@ async def _handle_mcp(scope: Scope, receive: Receive, send: Send) -> None:
         reset_request_api_key(token)
 
 
-async def _health(_: Request) -> JSONResponse:
-    return JSONResponse({"status": "ok", "service": "quantgist-mcp", "version": __version__})
+async def _health(scope: Scope, receive: Receive, send: Send) -> None:
+    response = JSONResponse(
+        {"status": "ok", "service": "quantgist-mcp", "version": __version__}
+    )
+    await response(scope, receive, send)
+
+
+async def _root(scope: Scope, receive: Receive, send: Send) -> None:
+    """Dispatch /health to liveness; everything else to the MCP endpoint.
+
+    The MCP app is served at the mount ROOT (not a "/mcp" sub-mount) so the exact path
+    returns the MCP response directly with NO trailing-slash 307 redirect. Strict clients
+    (e.g. the Smithery gateway) do not follow 307 on POST, so a redirect breaks
+    initialization. The proxy routes only /mcp* to this container, and the in-container
+    healthcheck uses /health.
+    """
+    if scope["type"] == "http" and scope.get("path") in ("/health", "/mcp/health"):
+        await _health(scope, receive, send)
+        return
+    await _handle_mcp(scope, receive, send)
 
 
 @contextlib.asynccontextmanager
@@ -62,10 +79,7 @@ async def _lifespan(_: Starlette) -> AsyncIterator[None]:
 
 app = Starlette(
     debug=False,
-    routes=[
-        Route("/health", _health, methods=["GET"]),
-        Mount("/mcp", app=_handle_mcp),
-    ],
+    routes=[Mount("/", app=_root)],
     lifespan=_lifespan,
 )
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quantgist-mcp"
-version = "0.3.0"
+version = "0.3.1"
 description = "MCP server — exposes QuantGist macro event tools to Claude and AI agents"
 readme = "README.md"
 license = { text = "MIT" }

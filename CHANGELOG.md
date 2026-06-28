@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 - 2026-06-28
+
+- Fixed the HTTP transport returning a `307` trailing-slash redirect on `/mcp`. The MCP
+  app is now served at the mount root, so `POST /mcp` (initialize) returns `200` directly.
+  Strict gateways (e.g. Smithery) that don't follow `307` on POST failed to initialize
+  before this. `/health` and `/mcp/health` both serve liveness.
+
 ## 0.3.0 - 2026-06-27
 
 - Added a **streamable-HTTP transport** (`quantgist-mcp-http`) so the server can be
