@@ -239,6 +239,33 @@ TOOLS: list[types.Tool] = [
     ),
 ]
 
+# Human-readable titles + behavioural annotations. Every tool is read-only (it only
+# fetches data), non-destructive, idempotent (no side effects), and open-world (it
+# queries live external data). Surfacing these hints is MCP best practice and lets
+# clients/registries reason about safety.
+_TOOL_TITLES: dict[str, str] = {
+    "get_upcoming_events": "Upcoming Economic Events",
+    "get_events_range": "Economic Events by Date Range",
+    "get_economic_calendar": "Economic Calendar (by day)",
+    "get_event_detail": "Economic Event Detail",
+    "get_earnings_upcoming": "Upcoming Earnings Reports",
+    "get_earnings_for_ticker": "Earnings History by Ticker",
+    "get_earnings_summary": "Earnings Beat/Miss Summary",
+    "get_earnings_surprises": "Top EPS Surprises",
+    "get_earnings_season_summary": "Earnings Season Summary",
+    "get_markets_overview": "Markets Overview",
+}
+
+for _tool in TOOLS:
+    _tool.title = _TOOL_TITLES.get(_tool.name)
+    _tool.annotations = types.ToolAnnotations(
+        title=_TOOL_TITLES.get(_tool.name),
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+
 # ---------------------------------------------------------------------------
 # Tool list handler
 # ---------------------------------------------------------------------------

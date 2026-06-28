@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 - 2026-06-28
+
+- Added human-readable `title` and behavioural `annotations` (readOnlyHint, destructiveHint,
+  idempotentHint, openWorldHint) to all 10 tools — every tool is read-only and queries live
+  external data. Improves client/registry capability scans and MCP best-practice scores.
+
 ## 0.3.2 - 2026-06-28
 
 - Register empty `resources/list` and `prompts/list` handlers so capability scans
