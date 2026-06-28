@@ -9,6 +9,9 @@
 services:
   quantgist-mcp:
     image: ghcr.io/quantgist-technologies/quantgist-mcp:latest
+    # Always re-pull :latest on deploy so a Coolify webhook redeploy picks up the
+    # freshly-pushed image (otherwise compose reuses the cached :latest digest).
+    pull_policy: always
     restart: unless-stopped
     environment:
       # MULTI-TENANT: no server-side key. Every caller must send their own QuantGist
