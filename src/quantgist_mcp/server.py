@@ -11,7 +11,8 @@ from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from quantgist_mcp.api import QuantGistAPI, QuantGistAPIError
+from quantgist_mcp import discovery
+from quantgist_mcp.api import BASE_URL, QuantGistAPI, QuantGistAPIError
 from quantgist_mcp.formatters import (
     format_calendar,
     format_earnings_list,
@@ -238,6 +239,72 @@ TOOLS: list[types.Tool] = [
             "required": [],
         },
     ),
+    # ---- Discovery / help tools (read-only, no API key required) ----
+    types.Tool(
+        name="get_pricing",
+        description=(
+            "Get QuantGist plans, prices, and feature gates (free → enterprise) plus the "
+            "Bot Usage Add-On. No API key needed — use it to help a user choose a plan."
+        ),
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    types.Tool(
+        name="get_limits",
+        description=(
+            "Get per-plan caps: daily/monthly request quotas, history window, data delay, "
+            "WebSocket connections, watchlists, and rate-limit behaviour. No API key needed."
+        ),
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    types.Tool(
+        name="recommend_endpoint",
+        description=(
+            "Given a natural-language use case (e.g. 'no-trade windows', 'earnings beat rate', "
+            "'unscheduled news risk'), recommend the best QuantGist REST endpoint and MCP tool. "
+            "No API key needed."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "use_case": {
+                    "type": "string",
+                    "description": "What the agent/bot is trying to do, in plain language.",
+                },
+            },
+            "required": ["use_case"],
+        },
+    ),
+    types.Tool(
+        name="get_status",
+        description=(
+            "Check QuantGist API reachability and point to the public status page. "
+            "No API key needed."
+        ),
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    types.Tool(
+        name="estimate_usage_cost",
+        description=(
+            "Estimate which plan fits a given request volume and flag overage / Bot Usage "
+            "Add-On considerations before running a workflow. No API key needed."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "requests_per_day": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Expected API requests per day.",
+                },
+                "plan": {
+                    "type": "string",
+                    "description": "Optional current plan to check against "
+                    "(free | starter | pro | team | enterprise).",
+                },
+            },
+            "required": ["requests_per_day"],
+        },
+    ),
 ]
 
 # Human-readable titles + behavioural annotations. Every tool is read-only (it only
@@ -255,6 +322,11 @@ _TOOL_TITLES: dict[str, str] = {
     "get_earnings_surprises": "Top EPS Surprises",
     "get_earnings_season_summary": "Earnings Season Summary",
     "get_markets_overview": "Markets Overview",
+    "get_pricing": "QuantGist Pricing & Plans",
+    "get_limits": "Plan Limits & Rate Limiting",
+    "recommend_endpoint": "Recommend an Endpoint/Tool",
+    "get_status": "API Status",
+    "estimate_usage_cost": "Estimate Usage & Plan Fit",
 }
 
 # Output schemas. Each tool also returns machine-readable `structuredContent` matching
@@ -291,6 +363,11 @@ _OUTPUT_SCHEMAS: dict[str, dict] = {
     "get_earnings_summary": _OPEN_OBJECT,
     "get_earnings_surprises": _list_out("earnings"),
     "get_earnings_season_summary": _OPEN_OBJECT,
+    "get_pricing": _OPEN_OBJECT,
+    "get_limits": _OPEN_OBJECT,
+    "recommend_endpoint": _OPEN_OBJECT,
+    "get_status": _OPEN_OBJECT,
+    "estimate_usage_cost": _OPEN_OBJECT,
     "get_markets_overview": {
         "type": "object",
         "properties": {
@@ -389,6 +466,12 @@ async def _dispatch(name: str, args: dict) -> tuple[str, dict[str, Any]]:
         "get_earnings_season_summary": _tool_get_earnings_season_summary,
         # Markets
         "get_markets_overview": _tool_get_markets_overview,
+        # Discovery / help (no API key required)
+        "get_pricing": _tool_get_pricing,
+        "get_limits": _tool_get_limits,
+        "recommend_endpoint": _tool_recommend_endpoint,
+        "get_status": _tool_get_status,
+        "estimate_usage_cost": _tool_estimate_usage_cost,
     }
     handler = handlers.get(name)
     if handler is None:
@@ -550,6 +633,63 @@ async def _tool_get_markets_overview(args: dict) -> tuple[str, dict[str, Any]]:
 
     structured = overview if isinstance(overview, dict) else {"groups": overview}
     return format_markets_overview(overview), structured
+
+
+# ---------------------------------------------------------------------------
+# Discovery / help tool implementations (read-only, no API key required)
+# ---------------------------------------------------------------------------
+
+
+async def _tool_get_pricing(args: dict) -> tuple[str, dict[str, Any]]:
+    return discovery.get_pricing()
+
+
+async def _tool_get_limits(args: dict) -> tuple[str, dict[str, Any]]:
+    return discovery.get_limits()
+
+
+async def _tool_recommend_endpoint(args: dict) -> tuple[str, dict[str, Any]]:
+    use_case = str(args.get("use_case", "")).strip()
+    if not use_case:
+        raise ValueError("use_case is required")
+    return discovery.recommend_endpoint(use_case)
+
+
+async def _tool_get_status(args: dict) -> tuple[str, dict[str, Any]]:
+    import httpx
+
+    url = f"{BASE_URL}/changelog"  # public, no auth
+    reachable = False
+    http_code: int | None = None
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url)
+            http_code = resp.status_code
+            reachable = resp.status_code == 200
+    except Exception:  # noqa: BLE001
+        reachable = False
+
+    state = "operational" if reachable else "unreachable"
+    text = (
+        f"**QuantGist API status: {state}**\n"
+        f"- Checked: `GET {url}` → {http_code if http_code is not None else 'no response'}\n"
+        f"- Status page: {discovery.STATUS_URL}\n"
+        f"- Hosted MCP: {BASE_URL.replace('/v1', '')}/mcp"
+    )
+    structured = {
+        "status": state,
+        "reachable": reachable,
+        "checked_endpoint": url,
+        "http_code": http_code,
+        "status_page": discovery.STATUS_URL,
+    }
+    return text, structured
+
+
+async def _tool_estimate_usage_cost(args: dict) -> tuple[str, dict[str, Any]]:
+    requests_per_day = int(args.get("requests_per_day", 0))
+    plan = args.get("plan")
+    return discovery.estimate_usage_cost(requests_per_day, plan)
 
 
 # ---------------------------------------------------------------------------

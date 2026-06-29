@@ -8,7 +8,7 @@ Exposes [QuantGist](https://quantgist.com) macro-economic event data as **Model 
 
 ## What it does
 
-The server registers ten tools that any MCP-compatible client (Claude Desktop, Claude Code, custom agents) can call:
+The server registers fifteen tools that any MCP-compatible client (Claude Desktop, Claude Code, custom agents) can call:
 
 **Macro economic events**
 
@@ -34,6 +34,16 @@ The server registers ten tools that any MCP-compatible client (Claude Desktop, C
 | Tool | Description |
 |------|-------------|
 | `get_markets_overview` | End-of-day quotes for major indices and instruments (S&P 500, Nasdaq, gold, oil…) |
+
+**Discovery & help** (read-only, no API key required)
+
+| Tool | Description |
+|------|-------------|
+| `get_pricing` | Plans, prices, and feature gates (free → enterprise) + the Bot Usage Add-On |
+| `get_limits` | Per-plan caps: request quotas, history window, data delay, WS, watchlists, rate limiting |
+| `recommend_endpoint` | Map a natural-language use case to the best REST endpoint + MCP tool |
+| `get_status` | Check API reachability and link the public status page |
+| `estimate_usage_cost` | Estimate which plan fits a request volume + overage / Bot Usage Add-On notes |
 
 ## Requirements
 

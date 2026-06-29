@@ -1,3 +1,3 @@
 """QuantGist MCP server package."""
 
-__version__ = "0.3.5"
+__version__ = "0.4.0"

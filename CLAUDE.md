@@ -25,7 +25,7 @@ production; both are enabled today.
 
 ---
 
-## MCP tools (10)
+## MCP tools (15)
 
 Macro events:
 
@@ -51,6 +51,16 @@ Markets:
 | Tool | Maps to |
 |------|---------|
 | `get_markets_overview` | `GET /markets/overview` |
+
+Discovery / help (read-only, **no API key** — static/computed data in `discovery.py`):
+
+| Tool | Source |
+|------|--------|
+| `get_pricing` | `discovery.PLANS` + `BOT_ADD_ON` (keep in sync with backend `PLAN_LIMITS`) |
+| `get_limits` | `discovery.PLANS` + `RATE_LIMIT` |
+| `recommend_endpoint` | keyword match over `discovery.ENDPOINT_CATALOG` |
+| `get_status` | keyless `GET /changelog` reachability + status page URL |
+| `estimate_usage_cost` | computed from `discovery._DAILY_CAP` / `_MONTHLY_CAP` |
 
 ---
 

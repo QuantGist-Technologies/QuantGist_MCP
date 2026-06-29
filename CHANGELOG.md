@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 - 2026-06-29
+
+- Added 5 read-only **discovery / help tools** (no API key required) so agents can evaluate
+  QuantGist before signing up: `get_pricing`, `get_limits`, `recommend_endpoint`,
+  `get_status`, `estimate_usage_cost`. Server now exposes **15 tools**.
+
 ## 0.3.5 - 2026-06-28
 
 - HTTP transport now also accepts the API key via `?apiKey=` (or `?api_key=`/`?key=`)
